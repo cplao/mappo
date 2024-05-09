@@ -18,7 +18,8 @@ class myEnv:
         self.compression_ratio_list = [0, 0.05, 0.1] # 图像压缩率的列表
         self.alpha = 0.5  # 传输时间和数据量之间的权重系数
         self.observation_space = 6  # 状态维度，数据量-1 + 所在卫星ID-1 + 四个邻居卫星的带宽-4
-        self.action_space = 7
+        # self.action_space = 7
+        self.action_space = 12
         self.end = random.randint(self.agent_num, self.satellite_num - 1)  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
 
         for i in range(self.satellite_num):  # 生成所有的卫星对象
@@ -59,18 +60,24 @@ class myEnv:
             if self.agent_list[i].isTransmitting:
                 continue
             i_agent_action = action[i]
-            temp_list = []  # 转发动作和丢弃动作的下标
-            for j, num in enumerate(i_agent_action):
-                if num == 1:
-                    temp_list.append(j)
-            target = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[temp_list[0]]
+            # agent_action_list = [dict(zip(self.compression_ratio_list, [neighbor])) for neighbor in self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor]
+            agent_action_list = []
+            for neighbor in range(4):
+                #这里要改，有些不是4个可能要改一改
+                for ratio in self.compression_ratio_list:
+                    agent_action_list.append([ratio, neighbor])
+            # temp_list = []  # 转发动作和丢弃动作的下标
+            # for j, num in enumerate(agent_action_list[int(i_agent_action)]):
+            #     if num == 1:
+            #         temp_list.append(j)
+            target = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[agent_action_list[int(i_agent_action)][1]]
             self.agent_list[i].next_satellite_id = target  # 修改下一跳目的
-            self.agent_list[i].data_amount *= (1 - self.discard_list[temp_list[1] - 4])  # 修改数据量
+            self.agent_list[i].data_amount *= (1 - agent_action_list[int(i_agent_action)][0])  # 修改数据量
 
         map = {}
         for i in range(self.agent_num):  # 获取每个agent能分得的带宽
             x, y = self.agent_list[i].curr_satellite_id, self.agent_list[i].next_satellite_id
-            key = x + "-" + y
+            key = str(x) + "-" + str(y)
             if key in map:
                 map[key] += self.agent_list[i].data_amount
             else:
@@ -80,7 +87,7 @@ class myEnv:
             if self.agent_list[i].isTransmitting:
                 continue
             x, y = self.agent_list[i].curr_satellite_id, self.agent_list[i].next_satellite_id
-            key = x + "-" + y
+            key = str(x) + "-" + str(y)
             band = self.satellite_list[x].idToBand[y]
             bandGet = self.agent_list[i].data_amount / map[key] * band
             transTime = self.agent_list[i].data_amount / bandGet
@@ -126,6 +133,7 @@ class myEnv:
         for i in range(self.agent_num):
             data_amount = random.randint(50, 100)
             self.agent_list.append(DataStream(i, i, data_amount))
+        return self.get_state()
 
 
 

@@ -19,13 +19,14 @@ class Runner_MAPPO_MPE:
         # Set random seed
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
-
+        
         # Create env
         self.env = myEnv(args)  # 创建自己的环境，需要指定卫星数量，智能体（数据流）数量，邻接矩阵
         self.args.N = self.env.agent_num  # agent的数量
-
-        self.args.obs_dim_n = [self.env.observation_space[i].shape[0] for i in range(self.args.N)]  # obs dimensions of N agents
-        self.args.action_dim_n = [self.env.action_space[i].n for i in range(self.args.N)]  # actions dimensions of N agents
+        # self.args.obs_dim_n = [self.env.observation_space.shape[0] for i in range(self.args.N)]   # obs dimensions of N agents
+        self.args.obs_dim_n = [self.env.observation_space for _ in range(self.args.N)]
+        self.args.action_dim_n = [self.env.action_space for _ in range(self.args.N)] 
+        # self.args.action_dim_n = [self.env.action_space[i].n for i in range(self.args.N)]  # actions dimensions of N agents
         # Only for homogenous agents environments like Spread in MPE,all agents have the same dimension of observation space and action space
         self.args.obs_dim = self.args.obs_dim_n[0]  # The dimensions of an agent's observation space
         self.args.action_dim = self.args.action_dim_n[0]  # The dimensions of an agent's action space
