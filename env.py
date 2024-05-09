@@ -14,6 +14,7 @@ class myEnv:
         self.satellite_num = args.satellite_num
         self.adj = args.adj  # 邻接矩阵
         self.satellite_list = []
+        self.is_finish = [False for _ in range(self.agent_num)]
         self.agent_list = []
         self.compression_ratio_list = [0, 0.05, 0.1] # 图像压缩率的列表
         self.alpha = 0.5  # 传输时间和数据量之间的权重系数
@@ -21,6 +22,7 @@ class myEnv:
         # self.action_space = 7
         self.action_space = 12
         self.end = random.randint(self.agent_num, self.satellite_num - 1)  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
+        print("end:" + str(self.end))
 
         for i in range(self.satellite_num):  # 生成所有的卫星对象
             neighbor_ids = self.adj[i]
@@ -44,6 +46,14 @@ class myEnv:
     def get_state(self):
         state = np.zeros((self.agent_num, self.observation_space))
         for i in range(self.agent_num):
+            if self.agent_list[i] == -1:
+                state[i][0] = 0
+                state[i][1] = 0
+                state[i][2] = 0
+                state[i][3] = 0
+                state[i][4] = 0
+                state[i][5] = 0
+                continue
             state[i][0] = self.agent_list[i].data_amount
             state[i][1] = self.agent_list[i].curr_satellite_id
             state[i][2] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[0]
@@ -57,6 +67,8 @@ class myEnv:
         reward = np.zeros(self.agent_num)
 
         for i in range(self.agent_num):  # 更新agent的下一跳目的和数据量
+            if self.agent_list[i] == -1:
+                continue
             if self.agent_list[i].isTransmitting:
                 continue
             i_agent_action = action[i]
@@ -76,6 +88,8 @@ class myEnv:
 
         map = {}
         for i in range(self.agent_num):  # 获取每个agent能分得的带宽
+            if self.agent_list[i] == -1:
+                continue
             x, y = self.agent_list[i].curr_satellite_id, self.agent_list[i].next_satellite_id
             key = str(x) + "-" + str(y)
             if key in map:
@@ -84,6 +98,8 @@ class myEnv:
                 map[key] = self.agent_list[i].data_amount
 
         for i in range(self.agent_num):  # 修改到达时间和isTransmitting状态，以及计算reward
+            if self.agent_list[i] == -1:
+                continue
             if self.agent_list[i].isTransmitting:
                 continue
             x, y = self.agent_list[i].curr_satellite_id, self.agent_list[i].next_satellite_id
@@ -99,7 +115,9 @@ class myEnv:
 
     def update_agent_state(self):
         for i in range(self.agent_num):
-            if self.agent_list[i].arrive_time == self.time:
+            if self.agent_list[i] == -1:
+                break
+            if self.agent_list[i].arrive_time < self.time:
                 self.agent_list[i].curr_satellite_id = self.agent_list[i].next_satellite_id
                 self.agent_list[i].next_satellite_id = None
                 self.agent_list[i].isTransmitting = False
@@ -111,37 +129,35 @@ class myEnv:
 
     def step(self, action):
         reward = self.take_action(action)
-        self.time += 1
+        self.time = self.time + 1
         self.update_satellite_state()
         self.update_agent_state()
 
         obs_next = self.get_state()
 
         if self.time <= self.time_limit - 1:
-            done_n = np.zeros(self.agent_num)
+            done_n = self.is_finish
         else:
-            # print("time done")
+            print("time done")
             done_n = np.ones(self.agent_num)
 
         information = None
         for i in  range(self.agent_num):
+            if self.agent_list[i] == -1:
+                continue
             if  self.satellite_list[self.agent_list[i].curr_satellite_id].type == 2:
-                self.agent_list.remove(self.agent_list[i])
-                print("remove")
-                print(self.agent_list)
-                self.finish -=1
-                self.agent_num -= 1
-                if self.finish == 0:
+                self.is_finish[i] = True
+                self.agent_list[i] = -1
+                if all(self.is_finish):
                     print("all done")
                     done_n = np.ones(self.agent_num)
                     return obs_next, reward, done_n, information
-        
-
         return obs_next, reward, done_n, information
 
     def reset(self):
         self.time = 0
         self.agent_list = []
+        self.is_finish = self.is_finish = [False for _ in range(self.agent_num)]
         for i in range(self.agent_num):
             data_amount = random.randint(50, 100)
             self.agent_list.append(DataStream(i, i, data_amount))
