@@ -120,10 +120,22 @@ class myEnv:
         if self.time <= self.time_limit - 1:
             done_n = np.zeros(self.agent_num)
         else:
-
+            # print("time done")
             done_n = np.ones(self.agent_num)
 
         information = None
+        for i in  range(self.agent_num):
+            if  self.satellite_list[self.agent_list[i].curr_satellite_id].type == 2:
+                self.agent_list.remove(self.agent_list[i])
+                print("remove")
+                print(self.agent_list)
+                self.finish -=1
+                self.agent_num -= 1
+                if self.finish == 0:
+                    print("all done")
+                    done_n = np.ones(self.agent_num)
+                    return obs_next, reward, done_n, information
+        
 
         return obs_next, reward, done_n, information
 
