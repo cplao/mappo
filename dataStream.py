@@ -6,4 +6,6 @@ class DataStream:
         self.next_satellite_id = None
         self.data_amount = data_amount
         self.isTransmitting = False
+        self.arrive_satellite_list = {}
+        
 

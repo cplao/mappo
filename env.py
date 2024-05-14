@@ -1,3 +1,4 @@
+from math import exp
 from satellite import Satellite
 from dataStream import DataStream
 import numpy as np
@@ -17,8 +18,9 @@ class myEnv:
         self.is_finish = [False for _ in range(self.agent_num)]
         self.agent_list = []
         self.compression_ratio_list = [0, 0.05, 0.1] # 图像压缩率的列表
-        self.alpha = 0.5  # 传输时间和数据量之间的权重系数
-        self.observation_space = 6  # 状态维度，数据量-1 + 所在卫星ID-1 + 四个邻居卫星的带宽-4
+        self.alpha = 0.2  # 传输时间和数据量之间的权重系数
+        self.observation_space = 11  # 状态维度，数据量-1 + 所在卫星ID-1 + 四个邻居卫星的带宽-4
+        self.arrive_data = 0
         # self.action_space = 7
         self.action_space = 12
         self.end = random.randint(self.agent_num, self.satellite_num - 1)  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
@@ -40,26 +42,37 @@ class myEnv:
                     Satellite(i, neighbor_ids, neighbor_bandwidths, 1))
 
         for i in range(self.agent_num):  # 生成所有的agent对象
-            data_amount = random.randint(50, 100)
+            data_amount = random.randint(10, 30)
             self.agent_list.append(DataStream(i, i, data_amount))
 
     def get_state(self):
         state = np.zeros((self.agent_num, self.observation_space))
         for i in range(self.agent_num):
             if self.agent_list[i] == -1:
-                state[i][0] = 0
-                state[i][1] = 0
-                state[i][2] = 0
-                state[i][3] = 0
-                state[i][4] = 0
-                state[i][5] = 0
-                continue
-            state[i][0] = self.agent_list[i].data_amount
-            state[i][1] = self.agent_list[i].curr_satellite_id
-            state[i][2] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[0]
-            state[i][3] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[1]
-            state[i][4] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[2]
-            state[i][5] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[3]
+                state[i][0] = -1
+                state[i][1] = -1
+                state[i][2] = -1
+                state[i][3] = -1
+                state[i][4] = -1
+                state[i][5] = -1
+                state[i][6] = -1
+                state[i][7] = -1
+                state[i][8] = -1
+                state[i][9] = -1
+                state[i][10] = -1
+                print(self.agent_list[i].arrive_satellite_list)
+            else:
+                state[i][0] = self.agent_list[i].data_amount
+                state[i][1] = self.agent_list[i].curr_satellite_id
+                state[i][2] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[0]
+                state[i][3] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[1]
+                state[i][4] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[2]
+                state[i][5] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor_bandwidths[3]
+                state[i][6] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[0]
+                state[i][7] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[1]
+                state[i][8] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[2]
+                state[i][9] = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[3]
+                state[i][10] = self.end
         return state
 
 
@@ -85,6 +98,10 @@ class myEnv:
             target = self.satellite_list[self.agent_list[i].curr_satellite_id].neighbor[agent_action_list[int(i_agent_action)][1]]
             self.agent_list[i].next_satellite_id = target  # 修改下一跳目的
             self.agent_list[i].data_amount *= (1 - agent_action_list[int(i_agent_action)][0])  # 修改数据量
+            if not self.agent_list[i].arrive_satellite_list.get(target):
+                self.agent_list[i].arrive_satellite_list[target] = 1
+            else:
+                self.agent_list[i].arrive_satellite_list[target] = self.agent_list[i].arrive_satellite_list.get(target) + 1
 
         map = {}
         for i in range(self.agent_num):  # 获取每个agent能分得的带宽
@@ -109,7 +126,17 @@ class myEnv:
             transTime = self.agent_list[i].data_amount / bandGet
             self.agent_list[i].arrive_time = self.time + transTime / self.timeSlot
             self.agent_list[i].isTransmitting = True
-            reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount
+            if self.agent_list[i].isTransmitting is True and self.agent_list[i].next_satellite_id == self.end:
+                reward[i] = self.arrive_data + self.agent_list[i].data_amount + self.time_limit- self.time 
+                if sum(self.is_finish) == self.agent_num:            
+                        reward[i] += self.time_limit
+            elif self.time <= self.time_limit - 2:
+                if self.agent_list[i].arrive_satellite_list.get(target):
+                    reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount - self.agent_list[i].arrive_satellite_list.get(target)
+                else:
+                    reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount
+            else:
+                reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount - 50 + self.arrive_data
 
         return reward
 
@@ -146,6 +173,7 @@ class myEnv:
             if self.agent_list[i] == -1:
                 continue
             if  self.satellite_list[self.agent_list[i].curr_satellite_id].type == 2:
+                self.arrive_data = self.agent_list[i].data_amount
                 self.is_finish[i] = True
                 self.agent_list[i] = -1
                 if all(self.is_finish):
@@ -155,11 +183,15 @@ class myEnv:
         return obs_next, reward, done_n, information
 
     def reset(self):
+        for i in range(self.agent_num):
+            if self.agent_list[i] != -1:
+                print(self.agent_list[i].arrive_satellite_list)
         self.time = 0
         self.agent_list = []
         self.is_finish = self.is_finish = [False for _ in range(self.agent_num)]
+        self.arrive_data = 0
         for i in range(self.agent_num):
-            data_amount = random.randint(50, 100)
+            data_amount = random.randint(10, 30)
             self.agent_list.append(DataStream(i, i, data_amount))
         return self.get_state()
 
