@@ -3,7 +3,7 @@ from satellite import Satellite
 from dataStream import DataStream
 import numpy as np
 import random
-
+import readcsv
 
 class myEnv:
     # 50个卫星 5个源 1个end
@@ -23,9 +23,9 @@ class myEnv:
         self.arrive_data = 0
         # self.action_space = 7
         self.action_space = 12
-        self.end = random.randint(self.agent_num, self.satellite_num - 1)  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
+        self.end = 20  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
         print("end:" + str(self.end))
-
+        martrix = readcsv.read_csv('matrix.txt')
         for i in range(self.satellite_num):  # 生成所有的卫星对象
             neighbor_ids = self.adj[i]
             neighbor_bandwidths = []
@@ -33,13 +33,13 @@ class myEnv:
                 neighbor_bandwidths.append(random.randint(5, 10))
             if (i >= 0) and (i < self.agent_num):
                 self.satellite_list.append(
-                    Satellite(i, neighbor_ids, neighbor_bandwidths, 0))
+                    Satellite(i, martrix[i], neighbor_bandwidths, 0))
             elif i == self.end:
                 self.satellite_list.append(
-                    Satellite(i, neighbor_ids, neighbor_bandwidths, 2))
+                    Satellite(i, martrix[i], neighbor_bandwidths, 2))
             else:
                 self.satellite_list.append(
-                    Satellite(i, neighbor_ids, neighbor_bandwidths, 1))
+                    Satellite(i, martrix[i], neighbor_bandwidths, 1))
 
         for i in range(self.agent_num):  # 生成所有的agent对象
             data_amount = random.randint(10, 30)
@@ -60,7 +60,6 @@ class myEnv:
                 state[i][8] = -1
                 state[i][9] = -1
                 state[i][10] = -1
-                print(self.agent_list[i].arrive_satellite_list)
             else:
                 state[i][0] = self.agent_list[i].data_amount
                 state[i][1] = self.agent_list[i].curr_satellite_id
@@ -78,7 +77,6 @@ class myEnv:
 
     def take_action(self, action):  # 参数的action是从policy中sample出来的策略
         reward = np.zeros(self.agent_num)
-
         for i in range(self.agent_num):  # 更新agent的下一跳目的和数据量
             if self.agent_list[i] == -1:
                 continue
@@ -127,16 +125,16 @@ class myEnv:
             self.agent_list[i].arrive_time = self.time + transTime / self.timeSlot
             self.agent_list[i].isTransmitting = True
             if self.agent_list[i].isTransmitting is True and self.agent_list[i].next_satellite_id == self.end:
-                reward[i] = self.arrive_data + self.agent_list[i].data_amount + self.time_limit- self.time 
+                reward[i] = (self.arrive_data)*sum(self.is_finish) + self.agent_list[i].data_amount + self.time_limit- self.time 
                 if sum(self.is_finish) == self.agent_num:            
-                        reward[i] += self.time_limit
+                        reward[i] += (self.time - self.time_limit) * self.arrive_data
             elif self.time <= self.time_limit - 2:
                 if self.agent_list[i].arrive_satellite_list.get(target):
                     reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount - self.agent_list[i].arrive_satellite_list.get(target)
                 else:
-                    reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount
+                    reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount + len(self.agent_list[i].arrive_satellite_list)
             else:
-                reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount - 50 + self.arrive_data
+                reward[i] = -transTime + self.alpha * self.agent_list[i].data_amount + self.arrive_data
 
         return reward
 
@@ -175,6 +173,8 @@ class myEnv:
             if  self.satellite_list[self.agent_list[i].curr_satellite_id].type == 2:
                 self.arrive_data = self.agent_list[i].data_amount
                 self.is_finish[i] = True
+                print("one done")
+                # print(self.agent_list[i].arrive_satellite_list)
                 self.agent_list[i] = -1
                 if all(self.is_finish):
                     print("all done")
@@ -183,9 +183,9 @@ class myEnv:
         return obs_next, reward, done_n, information
 
     def reset(self):
-        for i in range(self.agent_num):
-            if self.agent_list[i] != -1:
-                print(self.agent_list[i].arrive_satellite_list)
+        # for i in range(self.agent_num):
+            # if self.agent_list[i] != -1:
+            #     print(self.agent_list[i].arrive_satellite_list)
         self.time = 0
         self.agent_list = []
         self.is_finish = self.is_finish = [False for _ in range(self.agent_num)]
