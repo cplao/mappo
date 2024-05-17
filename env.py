@@ -23,9 +23,9 @@ class myEnv:
         self.arrive_data = 0
         # self.action_space = 7
         self.action_space = 12
-        self.end = 12  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
-        self.min_data_amount = 5
-        self.max_data_amount = 10
+        self.end = 20  # 前agent_num个卫星是EO卫星，从后面的id中随机生成一个终点
+        self.min_data_amount = 10
+        self.max_data_amount = 30
         self.min_bandwidth = 5
         self.max_bandwidth = 10
         self.min_transTime = self.min_data_amount / self.max_bandwidth
@@ -181,6 +181,7 @@ class myEnv:
         if self.time <= self.time_limit - 1:
             done_n = self.is_finish
         else:
+            print("time done")
             for i in  range(self.agent_num):
                 if self.agent_list[i] != -1:
                     print(self.agent_list[i].arrive_satellite_list)
@@ -193,7 +194,6 @@ class myEnv:
             if  self.satellite_list[self.agent_list[i].curr_satellite_id].type == 2:
                 self.arrive_data = self.agent_list[i].data_amount
                 self.is_finish[i] = True
-                print("one done")
                 # print(self.agent_list[i].arrive_satellite_list)
                 self.agent_list[i] = -1
                 if all(self.is_finish):
